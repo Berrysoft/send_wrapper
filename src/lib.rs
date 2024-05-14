@@ -96,10 +96,15 @@
 #[cfg_attr(docsrs, doc(cfg(feature = "futures")))]
 mod futures;
 
+use std::cell::Cell;
 use std::fmt;
 use std::mem::{self, ManuallyDrop};
 use std::ops::{Deref, DerefMut, Drop};
 use std::thread::{self, ThreadId};
+
+thread_local! {
+	static THREAD_ID: Cell<ThreadId> = Cell::new(thread::current().id());
+}
 
 /// A wrapper which allows you to move around non-[`Send`]-types between threads, as long as you access the contained
 /// value only from within the original thread and make sure that it is dropped from within the original thread.
@@ -114,13 +119,13 @@ impl<T> SendWrapper<T> {
 	pub fn new(data: T) -> SendWrapper<T> {
 		SendWrapper {
 			data: ManuallyDrop::new(data),
-			thread_id: thread::current().id(),
+			thread_id: THREAD_ID.get(),
 		}
 	}
 
 	/// Returns `true` if the value can be safely accessed from within the current thread.
 	pub fn valid(&self) -> bool {
-		self.thread_id == thread::current().id()
+		self.thread_id == THREAD_ID.get()
 	}
 
 	/// Takes the value out of the `SendWrapper<T>`.
